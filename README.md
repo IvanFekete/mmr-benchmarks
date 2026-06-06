@@ -1,4 +1,4 @@
-# mmrbench
+# mmr-benchmarks
 
 A Go benchmark suite for the data structure underneath a matchmaking queue.
 It compares four candidates — sorted array, skip list (Redis-style ZSET),
