@@ -8,9 +8,9 @@ Most articles about matchmaking focus on the rating system itself (like Elo, Gli
 
 Let's dive deeper into how the rank-based matchmaker works.  As we discussed, requests will likely be sharded by region, game mode, etc., but once this step is done, the matchmaking backend handles those requests and decides how to match players.
 
-To do this, the matchmaker needs to know whether there are enough compatible players within the acceptable MMR range for each group. As the goal is to match players with as small a rating difference as possible, the acceptable range widens until a match is found. Usually it starts at ±50 MMR and often reaches ±500 MMR, making it ask a lot of **range-count query** calls. In a typical mature live multiplayer game, the system should handle around **50,000 range-count queries/sec** per shard.
+To do this, the matchmaker needs to know whether there are enough compatible players within the acceptable MMR range for each group. As the goal is to match players with as small a rating difference as possible, the acceptable range widens until a match is found. Usually it starts at ±50 MMR and often reaches ±500 MMR, making it ask a lot of **range-count query** calls. Let's assume that in a typical mature live multiplayer game, the system should handle around **50,000 range-count queries/sec** per shard.
 
-Another important query, usually answered using the same data structure, is a **global rank query**. It returns the user's exact global rank for the specified MMR and is primarily used to display that rank on the leaderboard. This one is not a part of the matchmaking itself, but I measure this query's performance to understand each candidate's impact. In a production environment, the system can receive about **5,000 global rank queries/sec** per shard.
+Another important query, usually answered using the same data structure, is a **global rank query**. It returns the user's exact global rank for the specified MMR and is primarily used to display that rank on the leaderboard. This one is not a part of the matchmaking itself, but I measure this query's performance to understand each candidate's impact. Let's assume that the system can receive about **5,000 global rank queries/sec** per shard.
 
 Last, but not least, the queries that I should mention: adding and removing players from the matchmaking queue. The data structure should be able to dynamically update the queue with low latency, as we expect a high volume of requests at scale, not to mention retries due to network errors, delays, client issues, etc. 
 
@@ -53,7 +53,7 @@ I considered six structures, and ended up testing four of them:
 
 **Hybrid: Fenwick + per-bucket player lists.** Addresses the main disadvantage of Fenwick by maintaining a slice of queued player IDs and a map from player ID to (bucket, index in bucket). These structures enable exact rank and removal in O(1) with an additional cost of using more memory and slightly slowing writes.
 
-**Fenwick tree.** As described above, it doesn’t fully serve the purpose of the experiment, but it is included here to isolate the range-count query cost from the enumeration overload. Also, the structure may be useful if you maintain a separate index for iteration over the range. 
+**Fenwick tree.** As described above, it doesn’t fully serve the purpose of the experiment, but it is included here to isolate the range-count query cost from the enumeration overhead. Also, the structure may be useful if you maintain a separate index for iteration over the range. 
 
 ### No-go
 
@@ -67,7 +67,7 @@ I considered six structures, and ended up testing four of them:
 
 The code is written in Go 1.22 as a single module. Every candidate is run on the same fixed test set to ensure results consistency. During the test, I measure time (latency) and memory usage for each candidate and operation type.
 
-For latency measurement, I calculate the average of two values: the average of `testing.B` runs and latency from runs with production operations distribution (1.78% updates, 8.93% rank queries, 89.29% range queries). The measured timer overhead of 34 ns is reported alongside to better understand pure algorithmic latency. To measure memory usage, I use `runtime.ReadMemStats` to get a heap-delta at a steady state and perform forced garbage collections.
+For latency measurement, I calculate two values: the average of `testing.B` runs for pure algorithmic cost and per-operation latency under the production distribution to test tail latency (1.78% updates, 8.93% rank queries, 89.29% range queries). To measure memory usage, I use `runtime.ReadMemStats` to get a heap-delta at a steady state and perform forced garbage collections.
 
 To avoid concurrency costs and measure only the algorithmic latency of each candidate, I will take a tick-level snapshot to ensure read consistency.
 
@@ -96,12 +96,12 @@ Let’s run three operations for each candidate in isolation at N=100,000 player
 | Range count     | 31      | 32     | 355       | 1,190    |
 | Update (R+A)    | 225     | 357    | 269,000   | 2,993    |
 
-![Isolated operation latency at N=100,000 across five candidates, log scale](charts/01_isolated_latency.png)
+![Isolated operation latency at N=100,000 across four candidates, log scale](charts/01_isolated_latency.png)
 
 
 Isolated operation latency at N=100,000 across four candidates, log scale.
 
-The first thing you might notice is that the update cost for the sorted array is extremely high. However, this is easy to explain: a memove on a 100K-element slice has O(N) time complexity. This is why I don’t consider it an actual candidate and use it as a floor I measure against.
+The first thing you might notice is that the update cost for the sorted array is extremely high. However, this is easy to explain: a memmove on a 100K-element slice has O(N) time complexity. This is why I don’t consider it an actual candidate and use it as a floor I measure against.
 
 The interesting finding is the skip list: I expected it to be in the same ballpark as Fenwick on queries (both are nominally O(log N)), but it is 35× slower on Rank and 38× slower on Range count. What happened to an algorithm that was meant to be efficient?
 
