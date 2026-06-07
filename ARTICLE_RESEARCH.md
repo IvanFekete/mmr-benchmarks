@@ -57,7 +57,7 @@ I considered six structures, and ended up testing four of them:
 
 ### No-go
 
-**t-digest.** This structure is an approximate quantile sketch. I initially included it as a candidate for approximate range counts, but after looking at the exact methods’ latency floor (sub-100 ns), I realized there is no scenario where removing exactness to increase speed makes sense.
+**t-digest.** This structure is an approximate quantile sketch. I initially included it as a candidate for approximate range counts, but after looking at the exact methods’ latency floor (sub-100 ns), I realized there is no scenario where removing exactness to increase speed makes sense within a single shard.
 
 **B+ trees.** In practice, a Go B+ tree has all the downsides of a skip list: it is pointer-heavy and incurs cache misses at every level, so I will proceed with using just a skip list instead.
 
@@ -150,7 +150,7 @@ Let’s take a look at memory usage. Here is a per-player heap footprint at N=10
 | SortedArr       | 44               |
 | SkipList        | 97               |
 
-![Per-player heap footprint and projected total memory at N=20,000,000 per shard.](charts/03_memory.png)
+![Per-player heap footprint and projected total memory at N=20,000,000.](charts/03_memory.png)
 
 
 When you look at these numbers, it may sound like memory usage is not a big deal here, but if you project this linearly to 20,000,000 players per shard (the upper end of my scenarios), it gives you roughly 560 MB for Fenwick versus 1.94 GB for skip list. Even with a hybrid approach, memory usage is 860 MB, which is half that of a skip list. You may argue that memory is not critical here, but using this structure can free up workload capacity for other important tasks (like indexing) or reduce cloud costs, both of which are important.
