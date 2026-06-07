@@ -45,7 +45,7 @@ func measure(c candidate, dist workload.Distribution) {
 	delta := after.HeapAlloc - before.HeapAlloc
 	staticEst := idx.MemBytes()
 	bytesPerPlayer := float64(delta) / float64(N)
-	fmt.Printf("  %-22s heap=%10d B  static_est=%10d B  per_player=%5.1f B\n",
+	fmt.Printf("  %-22s heap=%10d B  static_est(struct only, excl. map)=%10d B  per_player=%5.1f B\n",
 		c.name+"/"+dist.String(), delta, staticEst, bytesPerPlayer)
 
 	// Keep idx live so it isn't reclaimed before the measurement.

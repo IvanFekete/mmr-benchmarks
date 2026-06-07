@@ -45,10 +45,10 @@ type Index interface {
 	// Size returns total players currently in the index.
 	Size() int
 
-	// MemBytes returns the structural memory footprint in bytes. This
-	// excludes Go runtime overhead and the secondary playerID lookup
-	// map (which all candidates need equally — we report it once at
-	// the benchmark level).
+	// MemBytes returns a static structural estimate that excludes the secondary playerID map.
+	// The headline memory figure comes from runtime heap-delta (cmd/memcheck), which includes
+	// the secondary map for every candidate equally — so the two numbers measure different
+	// things by design.
 	MemBytes() uint64
 
 	// Name returns a short identifier for reporting.
