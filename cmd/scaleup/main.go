@@ -171,7 +171,7 @@ func main() {
 		results[c.name] = make(map[int]benchResult)
 	}
 
-	fmt.Println("Scaling sweep, uniform distribution, in-env (1 vCPU, Xeon 2.8 GHz, Go 1.22):\n")
+	fmt.Println("Scaling sweep, uniform distribution, in-env (1 vCPU, Xeon 2.8 GHz, Go 1.22):")
 	fmt.Printf("%-18s %10s %10s %10s %10s %10s %10s\n",
 		"candidate", "N", "build_ms", "rank_ns", "range_ns", "update_ns", "B/player")
 	fmt.Println("-----------------------------------------------------------------------------------")
