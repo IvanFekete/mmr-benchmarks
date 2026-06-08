@@ -2,7 +2,7 @@
 
 If you happen to develop a multiplayer game with a large number of users at scale, you will ask yourself a question: how would people be arranged into matches? First of all, you need a separate matchmaker service to handle ticket intake and create player assignments, and it should use common criteria to match players accordingly. Some of them will require a hard split into non-intersecting groups, such as region, game mode, and other factors. Still, once this sharding is done, for most games you will need to consider players' experience to match people with similar skills: that could be their level, rating, score, etc. Let’s call this number **MMR (matchmaking rank)**.
 
-Most articles about matchmaking focus on the rating system itself (like Elo, Glicko-2, or TrueSkill 2), but rarely on the layer underneath: once your rating system has assigned an MMR (matchmaking rank) to every player currently in the queue, what kind of queries gonna be performed to make a match, and what data structure will serve all these queries?
+Most articles about matchmaking focus on the rating system itself (like Elo, Glicko-2, or TrueSkill 2), but rarely on the layer underneath: once your rating system has assigned an MMR (matchmaking rank) to every player currently in the queue, what queries will be performed to make a match, and what data structure will serve all these queries?
 
 ## Background
 
@@ -103,7 +103,7 @@ The first thing you might notice is that the update cost for the sorted array is
 
 The interesting finding is the skip list: I expected it to be in the same ballpark as Fenwick on queries (both are nominally O(log N)), but it is 35× slower on Rank and 38× slower on Range count. What happened to an algorithm that was meant to be efficient?
 
-To answer this, let's dive deeper into how each solution allocates and accesses memory. Fenwick tree relies on flat arrays that are allocated in the same place in memory, so iterating over the elements of the array is faster because every next element is located in proximity to the previous one. On the other hand, the skip list uses pointers that are created and allocated in the memory separately, and this causes random jumps to unpredictable addresses throughout the heap, resulting in higher latency for every iteration that accumulates as the algorithm runs.
+To answer this, let's dive deeper into how each solution allocates and accesses memory. Fenwick tree relies on flat arrays that are allocated in the same place in memory, so iterating over the elements of the array is faster because the array is an L2-resident. On the other hand, the skip list uses pointers that are created and allocated in the memory separately, and this causes random jumps to unpredictable addresses throughout the heap, resulting in higher latency for every iteration that accumulates as the algorithm runs.
 
 ## Scaling from 100K to 1M
 
@@ -153,7 +153,7 @@ Let’s take a look at memory usage. Here is a per-player heap footprint at N=10
 ![Per-player heap footprint and projected total memory at N=20,000,000.](charts/03_memory.png)
 
 
-When you look at these numbers, it may sound like memory usage is not a big deal here, but if you project this linearly to 20,000,000 players per shard (the upper end of my scenarios), it gives you roughly 560 MB for Fenwick versus 1.94 GB for skip list. Even with a hybrid approach, memory usage is 860 MB, which is half that of a skip list. You may argue that memory is not critical here, but using this structure can free up workload capacity for other important tasks (like indexing) or reduce cloud costs, both of which are important.
+When you look at these numbers, it may sound like memory usage is not a big deal here, but if you project this linearly to 20,000,000 players (the upper end of my scenarios), it gives you roughly 560 MB for Fenwick versus 1.94 GB for skip list. Even with a hybrid approach, memory usage is 860 MB, which is half that of a skip list. You may argue that memory is not critical here, but using this structure can free up workload capacity for other important tasks (like indexing) or reduce cloud costs, both of which are important.
 
 Another observation: most of Fenwick’s 28 bytes per player memory is taken by the secondary `mmrOf` map (a Go map entry is roughly 25 bytes amortized). The Fenwick tree array itself takes just 40 KB total, which works out to 0.4 bytes per player at N=100K and 0.04 bytes per player at N=1M. That is the bucketized-counts structure paying off in memory the same way it pays off in cache.
 
@@ -168,7 +168,7 @@ Based on our test, the conclusion is simple: Fenwick + bucket list wins over all
 | Aggregates plus per-bracket enumeration               | **Hybrid**           |
 | MMR is continuous, unbounded, or has resolution that doesn’t quantize naturally | **Skip list** or balanced tree |
 | N < 1000                      | **Sorted array**     |
-| You need order statistics on a continuous 2- or 3-scalar rating lke (μ, σ) in TrueSkill 2 | **2D/3D Fenwick or kd-tree** |
+| You need order statistics on a continuous 2- or 3-scalar rating like (μ, σ) in TrueSkill 2 | **2D/3D Fenwick or kd-tree** |
 
 
 A few notes on the table for cases that differ from my test conditions.
@@ -196,8 +196,6 @@ And one more thing to add: this is a single benchmark study and does not guarant
 The project is available on my GitHub via the link. You can reproduce results, build the module, run the entry points, and get output using the steps described in README.md.
 
 All scenarios use deterministic seeds to produce identical results on different runs/environments/machines. To keep the parameters consistent across all candidates, I defined them in pkg/workload and pkg/index/fenwick. This decision makes parameter editing harder and requires recompiling the module, so this update will always be explicit to the user.
-
-The numbers in this article are from a run on a 1-vCPU Xeon at 2.8 GHz with Go 1.22. Production-scale numbers (N=2M and N=20M per shard) and multi-core sharding behavior will appear in a follow-up.
 
 ## References
 
