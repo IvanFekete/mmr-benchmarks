@@ -96,14 +96,11 @@ Let’s run three operations for each candidate in isolation at N=100,000 player
 
 ![Isolated operation latency at N=100,000 across four candidates, log scale](charts/01_isolated_latency.png)
 
-
-Isolated operation latency at N=100,000 across four candidates, log scale.
-
 The first thing you might notice is that the update cost for the sorted array is extremely high. However, this is easy to explain: a memmove on a 100K-element slice has O(N) time complexity. This is why I don’t consider it an actual candidate and use it as a floor I measure against.
 
 The interesting finding is the skip list: I expected it to be in the same ballpark as Fenwick on queries (both are nominally O(log N)), but it is 35× slower on Rank and 38× slower on Range count. What happened to an algorithm that was meant to be efficient?
 
-To answer this, let's dive deeper into how each solution allocates and accesses memory. Fenwick tree relies on flat arrays that are allocated in the same place in memory, so iterating over the elements of the array is faster because the array is an L2-resident. On the other hand, the skip list uses pointers that are created and allocated in the memory separately, and this causes random jumps to unpredictable addresses throughout the heap, resulting in higher latency for every iteration that accumulates as the algorithm runs.
+To answer this, let's dive deeper into how each solution allocates and accesses memory. Fenwick tree relies on flat arrays that are allocated in the same place in memory, so iterating over the elements of the array is faster because the array is L2-resident. On the other hand, the skip list uses pointers that are created and allocated in the memory separately, and this causes random jumps to unpredictable addresses throughout the heap, resulting in higher latency for every iteration that accumulates as the algorithm runs.
 
 ## Scaling from 100K to 1M
 
@@ -116,10 +113,7 @@ Now, let’s check what happens when N changes. Here are the results of running 
 | Hybrid          | 17            | 17          | 32           | 552           | **1.00×**       |
 | SkipList        | 576           | 1,274       | 2,420        | 5,547         | **2.21×**       |
 
-![Rank query latency vs population size. Fenwick and Hybrid stay flat at ~16 ns; skip list grows 2.2× per decade of N due to growing cache footprint.](charts/02_scaling.png)
-
-
-Rank query latency vs population size. Fenwick and Hybrid stay flat at ~16 ns; the skip list grows by a factor of 2.2× per decade of N due to the growing cache footprint.
+![Rank query latency vs population size. Fenwick and Hybrid stay flat at ~16 ns; skip list grows 2.2× per decade of N due to growing cache footprint](charts/02_scaling.png)
 
 Might be surprising that Fenwick shows the same results for rank queries for both 100K and 1M: we increased the number of players by 10x, but still have identical query times. The reason is simple: Fenwick’s depth is `log₂(B)`, where B is constant regardless of how many players occupy the buckets, so the access pattern doesn’t change when N grows, as well as the tree array doesn’t change its size.
 
@@ -150,7 +144,7 @@ Let’s take a look at memory usage. Here is a per-player heap footprint at N=10
 | SortedArr       | 44               |
 | SkipList        | 97               |
 
-![Per-player heap footprint and projected total memory at N=20,000,000.](charts/03_memory.png)
+![Per-player heap footprint and projected total memory at N=20,000,000](charts/03_memory.png)
 
 
 When you look at these numbers, it may sound like memory usage is not a big deal here, but if you project this linearly to 20,000,000 players (the upper end of my scenarios), it gives you roughly 560 MB for Fenwick versus 1.94 GB for skip list. Even with a hybrid approach, memory usage is 860 MB, which is half that of a skip list. You may argue that memory is not critical here, but using this structure can free up workload capacity for other important tasks (like indexing) or reduce cloud costs, both of which are important.
